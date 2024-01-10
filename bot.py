@@ -3,8 +3,6 @@ import config
 from discord.ext import commands
 from discord import app_commands
 import vtcics
-import sys
-from IPython import display
 
 def run_discord_bot():
     TOKEN = config.token
@@ -31,6 +29,7 @@ def run_discord_bot():
     @bot.tree.command(name="upload", description="Upload your moodle calendar link (get it at: https://moodle2324.vtc.edu.hk/calendar/export.php) ")
     @app_commands.describe(url = "Paste the calendar link here")
     async def upload(interaction: discord.Interaction, url:str):
-        await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
+        await interaction.response.send_message(f"{vtcics.sync(interaction.user.id, interaction.user.name, url)}")
+        # await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
 
     bot.run(TOKEN)
