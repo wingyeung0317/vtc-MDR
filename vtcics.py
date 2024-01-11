@@ -101,11 +101,16 @@ def sync(id, name, url):
             result = conn.execute(update_event_stmt)
             conn.commit()
     for index, event in grabQuizOpen(icsDF).iterrows():
-        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], assignment = False, quiz = True).on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], assignment = False, quiz = True))
+        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], assignment = False, quiz = True).on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], assignment = False, quiz = True))
         with engine.connect() as conn:
             result = conn.execute(update_event_stmt)
             conn.commit()
     for index in icsDF.index:
         pd.DataFrame({"user_id":[id], "event_id":[index]}).to_sql("links", con=engine, if_exists="append")
-    pd.read_sql("SELECT user_id, event_id FROM links", engineURL).drop_duplicates().reset_index(drop=True).to_sql("links", con=engine, if_exists="replace")
-    return(f"({id}) {name} has been synced")
+    synced_df = pd.read_sql("SELECT user_id, event_id FROM links", engineURL).drop_duplicates().reset_index(drop=True)
+    synced_df.to_sql("links", con=engine, if_exists="replace")
+    synced_viewer_df = pd.read_sql(f"SELECT name, course, open, due \
+                                   FROM events, links \
+                                   WHERE links.user_id = {id} AND events.uid = links.event_id ", 
+                                   engineURL).drop_duplicates().reset_index(drop=True)
+    return(f"{len(synced_df)} events have been synced for ({id}: {name}) \n ```{synced_viewer_df}```")
