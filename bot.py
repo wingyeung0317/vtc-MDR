@@ -31,7 +31,7 @@ def run_discord_bot():
     @app_commands.describe(url = "Paste the calendar link here")
     async def upload(interaction: discord.Interaction, url:str):
         await interaction.response.defer()
-        await asyncio.sleep(25)
+        asyncio.sleep(25)
         await interaction.followup.send(f"{vtcics.sync(interaction.user.id, interaction.user.name, url)}")
         # await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
 

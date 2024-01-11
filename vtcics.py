@@ -113,4 +113,4 @@ def sync(id, name, url):
                                    FROM events, links \
                                    WHERE links.user_id = {id} AND events.uid = links.event_id ", 
                                    engineURL).drop_duplicates().reset_index(drop=True)
-    return(f"{len(synced_df)} events have been synced for ({id}: {name}) \n ```{synced_viewer_df}```")
+    return(f"{len(synced_df)} events have been synced for ({id}: {name}) ```{synced_viewer_df}```")
