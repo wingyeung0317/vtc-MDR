@@ -3,11 +3,10 @@ from urllib.request import urlopen
 import ics
 import re
 import arrow
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 import config
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String, TIMESTAMP, Table, MetaData
-from IPython import display
 
 engineURL = config.engineURL
 engine = create_engine(engineURL, future=True)
@@ -19,7 +18,20 @@ users = Table(
     Column("id", BigInteger, primary_key=True),
     Column("name", String)
 )
-    
+
+guilds = Table(
+    "guilds", metadata,
+    Column("id", BigInteger, primary_key=True),
+    Column("name", String)
+)
+
+channels = Table(
+    "channels", metadata,
+    Column("id", BigInteger, primary_key=True),
+    Column("name", String),
+    Column("guild_id", None, ForeignKey("guilds.id"))
+)
+
 events = Table(
     "events", metadata,
     Column("uid", String, primary_key=True),
@@ -41,6 +53,12 @@ links = Table(
     Column("event_id", None, ForeignKey("events.uid"))
 )
 
+user_in_guilds = Table(
+    "user_in_guilds", metadata,
+    Column("index", Integer),
+    Column("user_id", None, ForeignKey("users.id")),
+    Column("guild_id", None, ForeignKey("guilds.id"))
+)
 metadata.create_all(engine)
 
 def grabICS(url) -> pd.DataFrame:
@@ -83,7 +101,7 @@ def grabQuizOpen(df) -> pd.DataFrame:
     quiz_startDF.columns = ['name', 'course', 'description', 'open', 'url', 'modifiedDate']
     return quiz_startDF
 
-def sync(id, name, url):
+def syncURL(id, name, url):
     # conn.execute(users.insert(), {"id":id, "name":name})
     update_user_stmt = insert(users).values(id = id, name = name).on_conflict_do_update(index_elements=[users.c.id], set_ = dict(name = name))
     with engine.connect() as conn:
@@ -108,9 +126,42 @@ def sync(id, name, url):
     for index in icsDF.index:
         pd.DataFrame({"user_id":[id], "event_id":[index]}).to_sql("links", con=engine, if_exists="append")
     synced_df = pd.read_sql("SELECT user_id, event_id FROM links", engineURL).drop_duplicates().reset_index(drop=True)
-    synced_df.to_sql("links", con=engine, if_exists="replace")
+    stmt = (delete(links))
+    with engine.connect() as conn:
+        result = conn.execute(stmt)
+        conn.commit()
+    synced_df.to_sql("links", con=engine, if_exists="append")
     synced_viewer_df = pd.read_sql(f"SELECT name, course, open, due \
                                    FROM events, links \
                                    WHERE links.user_id = {id} AND events.uid = links.event_id ", 
                                    engineURL).drop_duplicates().reset_index(drop=True)
+    metadata.create_all(engine)
     return(f"{len(synced_df)} events have been synced for ({id}: {name}) ```{synced_viewer_df}```")
+
+def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
+    # update guild
+    for index, guild in guildDF.drop_duplicates('guild_id').iterrows():
+        stmt = insert(guilds).values(id = guild['guild_id'], name = guild['guild_name']).on_conflict_do_update(index_elements=[guilds.c.id], set_ = dict(name = guild['guild_name']))
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            conn.commit()
+    # update channel
+    for index, channel in guildDF.iterrows():
+        stmt = insert(channels).values(id = channel['id'], name = channel['name'], guild_id = channel['guild_id']).on_conflict_do_update(index_elements=[channels.c.id], set_ = dict(name = channel['name'], guild_id = channel['guild_id']))
+        with engine.connect() as conn:
+            result = conn.execute(stmt)
+            conn.commit()
+    # update user and guild belonings
+    for index, user in userDF.iterrows():
+        update_user_stmt = insert(users).values(id = user['user_id'], name = user['name']).on_conflict_do_update(index_elements=[users.c.id], set_ = dict(name = user['name']))
+        with engine.connect() as conn:
+            result = conn.execute(update_user_stmt)
+            conn.commit()
+    userDF[['user_id', 'guild_id']].reset_index(drop=True).to_sql("user_in_guilds", con=engine, if_exists="append")
+    user_in_guilds_df = pd.read_sql("SELECT user_id, guild_id FROM user_in_guilds", engineURL).drop_duplicates().reset_index(drop=True)
+    stmt = (delete(user_in_guilds))
+    with engine.connect() as conn:
+        result = conn.execute(stmt)
+        conn.commit()
+    user_in_guilds_df.to_sql("user_in_guilds", con=engine, if_exists="append")
+    metadata.create_all(engine)
