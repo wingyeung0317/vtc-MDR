@@ -29,7 +29,8 @@ channels = Table(
     "channels", metadata,
     Column("id", BigInteger, primary_key=True),
     Column("name", String),
-    Column("guild_id", None, ForeignKey("guilds.id"))
+    Column("guild_id", None, ForeignKey("guilds.id")),
+    Column("announce", Boolean, default=False)
 )
 
 events = Table(
@@ -135,7 +136,6 @@ def syncURL(id, name, url):
                                    FROM events, links \
                                    WHERE links.user_id = {id} AND events.uid = links.event_id ", 
                                    engineURL).drop_duplicates().reset_index(drop=True)
-    metadata.create_all(engine)
     return(f"{len(synced_df)} events have been synced for ({id}: {name}) ```{synced_viewer_df}```")
 
 def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
@@ -164,4 +164,12 @@ def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
         result = conn.execute(stmt)
         conn.commit()
     user_in_guilds_df.to_sql("user_in_guilds", con=engine, if_exists="append")
-    metadata.create_all(engine)
+
+def grab_announce_channel():
+    announce_channelDF = pd.read_sql("SELECT id FROM channels WHERE announce = TRUE", engineURL)
+    return announce_channelDF
+
+def grab_announce_user():
+    announce_userDF = pd.read_sql("SELECT id FROM users", engineURL).reset_index(drop=True)
+    announce_userDF = announce_userDF.drop(announce_userDF[announce_userDF['id']==1194240403008933999].index)
+    return announce_userDF

@@ -11,9 +11,16 @@ def run_discord_bot():
     bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
     # client = discord.Client(intents=discord.Intents.all())
 
-    # @tasks.loop(seconds=300)
-    # async def auto_send(channel : discord.TextChannel | list):
-    #     await channel.send('Test message')
+    @tasks.loop(seconds=300)
+    async def auto_send():
+        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
+            print(announce_channel['id'])
+            channel = await bot.fetch_channel(announce_channel['id'])
+            await channel.send('Test message')
+        for index, announce_user in vtcics.grab_announce_user().iterrows():
+            print(announce_user['id'])
+            user = await bot.fetch_user(announce_user['id'])
+            await user.send('Test message')
 
     @tasks.loop(seconds=300)
     async def auto_sync(guildDF:pd.DataFrame, userDF:pd.DataFrame):
@@ -40,12 +47,11 @@ def run_discord_bot():
         if not auto_sync.is_running():
             auto_sync.start(guildDF, userDF)
         
-        user = await bot.fetch_user('525916472833343528')
+        # user = await bot.fetch_user('525916472833343528')
         # text_channel_list.append(user)
 
-        # if not auto_send.is_running():
-        #     pass
-            # auto_send.start(text_channel_list)
+        if not auto_send.is_running():
+            auto_send.start()
 
         print(
             f'{bot.user} has successfully connected to the following guild(s):\n'
@@ -53,7 +59,7 @@ def run_discord_bot():
         )
 
         await bot.change_presence(
-            activity=discord.Activity(name='to its creator: killicit.wy', type=discord.ActivityType.listening)
+            activity=discord.Activity(name='its creator: killicit.wy', type=discord.ActivityType.listening)
         )
             
     @bot.tree.command(name="test")
