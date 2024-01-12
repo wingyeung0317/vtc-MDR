@@ -46,7 +46,7 @@ def run_discord_bot():
 
         if not auto_sync.is_running():
             auto_sync.start(guildDF, userDF)
-        
+
         # user = await bot.fetch_user('525916472833343528')
         # text_channel_list.append(user)
 
@@ -61,7 +61,7 @@ def run_discord_bot():
         await bot.change_presence(
             activity=discord.Activity(name='its creator: killicit.wy', type=discord.ActivityType.listening)
         )
-            
+
     @bot.tree.command(name="test")
     async def test(interaction: discord.Interaction):
         await interaction.response.send_message("Hello World! (via /test)", ephemeral=True)
@@ -80,5 +80,14 @@ def run_discord_bot():
         asyncio.sleep(25)
         await interaction.followup.send(f"{vtcics.syncURL(interaction.user.id, interaction.user.name, url)}")
         # await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
+
+    @bot.tree.command(name="announce", description="Make this channel announce the events or mute me in this channel")
+    async def test(interaction: discord.Interaction):
+        await interaction.response.defer()
+        asyncio.sleep(25)
+        try:
+            await interaction.followup.send(f"Will start announce in this channel" if vtcics.mute_channel(interaction.channel.id) else f"Will be muted in this channel")
+        except:
+            await interaction.followup.send("Failed, not finished this function for user direct messages")
 
     bot.run(TOKEN)

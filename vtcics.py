@@ -11,7 +11,8 @@ from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String,
 engineURL = config.engineURL
 engine = create_engine(engineURL, future=True)
 metadata = MetaData()
-conn = engine.connect()
+conn = engine.raw_connection()
+cursor = conn.cursor()
 
 users = Table(
     "users", metadata,
@@ -173,3 +174,15 @@ def grab_announce_user():
     announce_userDF = pd.read_sql("SELECT id FROM users", engineURL).reset_index(drop=True)
     announce_userDF = announce_userDF.drop(announce_userDF[announce_userDF['id']==1194240403008933999].index)
     return announce_userDF
+
+def mute_channel(id) -> Boolean:
+    cursor.execute(f"SELECT announce FROM channels WHERE id = {id}")
+    mute_bool = cursor.fetchone()
+    mute_bool = not mute_bool[0]
+    stmt = channels.update().values(announce = mute_bool).where(channels.c.id == id)
+    with engine.connect() as conn:
+        result = conn.execute(stmt)
+        conn.commit()
+    cursor.execute(f"SELECT announce FROM channels WHERE id = {id}")
+    mute_bool = cursor.fetchone()
+    return mute_bool[0]
