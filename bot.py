@@ -11,7 +11,8 @@ def run_discord_bot():
     bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
     # client = discord.Client(intents=discord.Intents.all())
 
-    @tasks.loop(seconds=300)
+    loop1_sec = 2*60*60
+    @tasks.loop(seconds=loop1_sec)
     async def auto_send():
         for index, announce_channel in vtcics.grab_announce_channel().iterrows():
             print(announce_channel['id'])
@@ -20,7 +21,28 @@ def run_discord_bot():
         for index, announce_user in vtcics.grab_announce_user().iterrows():
             print(announce_user['id'])
             user = await bot.fetch_user(announce_user['id'])
-            await user.send('Test message')
+            (open_events, opened_events, due_events) = vtcics.checkTime(loop1_sec)
+            msg = ""
+            if len(open_events)!=0:
+                for index, event in open_events.iterrows():
+                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
+                await user.send(f"# [Will be opened] Following Events would be opened around 2 hours: \n {msg}")
+            else:
+                await user.send("no open event")
+            msg = ""
+            if len(opened_events)!=0:
+                for index, event in opened_events.iterrows():
+                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
+                await user.send(f"# [OPENED] Following Events have been opened: \n {msg}")
+            else:
+                await user.send("no opened event")
+            msg = ""
+            if len(due_events)!=0:
+                for index, event in due_events.iterrows():
+                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
+                await user.send(f"# [DUE] Following Events would be due around 2 hours: \n {msg}")
+            else:
+                await user.send("no due event")
 
     @tasks.loop(seconds=300)
     async def auto_sync(guildDF:pd.DataFrame, userDF:pd.DataFrame):

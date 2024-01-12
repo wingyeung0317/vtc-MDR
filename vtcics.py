@@ -44,8 +44,7 @@ events = Table(
     Column("due", TIMESTAMP),
     Column("url", String),
     Column("modifiedDate", TIMESTAMP),
-    Column("assignment", Boolean),
-    Column("quiz", Boolean)
+    Column("type", String)
 )
 
 links = Table(
@@ -111,17 +110,17 @@ def syncURL(id, name, url):
         conn.commit()
     icsDF = grabICS(url)
     for index, event in grabAssaignment(icsDF).iterrows():
-        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], assignment = True, quiz = False).on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], assignment = True, quiz = False))
+        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], type = "assignment").on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], type = "assignment"))
         with engine.connect() as conn:
             result = conn.execute(update_event_stmt)
             conn.commit()
     for index, event in grabQuiz(icsDF).iterrows():
-        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], assignment = False, quiz = True).on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], assignment = False, quiz = True))
+        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], type = "quiz").on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = None, due = event[3], url = event[4], modifiedDate = event[5], type = "quiz"))
         with engine.connect() as conn:
             result = conn.execute(update_event_stmt)
             conn.commit()
     for index, event in grabQuizOpen(icsDF).iterrows():
-        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], assignment = False, quiz = True).on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], assignment = False, quiz = True))
+        update_event_stmt = insert(events).values(uid = index, name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], type = "quiz").on_conflict_do_update(index_elements=[events.c.uid], set_ = dict(name = event[0], course = event[1], description = event[2], open = event[3], due = None, url = event[4], modifiedDate = event[5], type = "quiz"))
         with engine.connect() as conn:
             result = conn.execute(update_event_stmt)
             conn.commit()
@@ -186,3 +185,24 @@ def mute_channel(id) -> Boolean:
     cursor.execute(f"SELECT announce FROM channels WHERE id = {id}")
     mute_bool = cursor.fetchone()
     return mute_bool[0]
+
+def checkTime(seconds):
+    time_now = arrow.now()
+    # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
+    time_shift = seconds + (seconds/2/2)
+    open_events = pd.read_sql(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL)
+    opened_events = pd.read_sql(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}'", engineURL)
+    due_events = pd.read_sql(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.due, e.type, e.url \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL)
+    return open_events, opened_events, due_events
