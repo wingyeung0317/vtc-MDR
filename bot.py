@@ -11,141 +11,70 @@ def run_discord_bot():
     bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
     # client = discord.Client(intents=discord.Intents.all())
 
-    loop1_sec = 2*60*60
+    loop1_sec = 4*60*60
     @tasks.loop(seconds=loop1_sec)
     async def auto_send1():
         for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            print(announce_channel['id'])
             channel = await bot.fetch_channel(announce_channel['id'])
             await channel.send('Test message')
         for index, announce_user in vtcics.grab_announce_user().iterrows():
-            print(announce_user['id'])
             user = await bot.fetch_user(announce_user['id'])
             (open_events, opened_events, due_events) = vtcics.checkTime(loop1_sec)
-            msg = ""
-            if len(open_events)!=0:
-                for index, event in open_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Open: *{event['open']}* \n"
-                await user.send(f"# [Will be opened] Following Events would be opened around 2 hours: \n {msg}")
-            # else:
-            #     await user.send("no open event")
-            msg = ""
-            if len(opened_events)!=0:
-                for index, event in opened_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Opened: *{event['open']}* \n"
-                await user.send(f"# [OPENED] Following Events have been opened: \n {msg}")
-            # else:
-            #     await user.send("no opened event")
-            msg = ""
-            if len(due_events)!=0:
-                for index, event in due_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
-                await user.send(f"# [DUE] Following Events would be due around 2 hours: \n {msg}")
-            # else:
-            #     await user.send("no due event")
+            await user.send(vtcics.event_msg(open_events, 'Open', '4 hours'))
+            await user.send(vtcics.event_msg(opened_events, 'Opened', '4 hours'))
+            await user.send(vtcics.event_msg(due_events, 'Due', '4 hours'))
                 
     loop2_sec = 24*60*60
     @tasks.loop(seconds=loop2_sec)
     async def auto_send2():
         for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            print(announce_channel['id'])
             channel = await bot.fetch_channel(announce_channel['id'])
             await channel.send('Test message')
         for index, announce_user in vtcics.grab_announce_user().iterrows():
-            print(announce_user['id'])
             user = await bot.fetch_user(announce_user['id'])
             (open_events, opened_events, due_events) = vtcics.checkTime(loop2_sec)
-            msg = ""
-            if len(open_events)!=0:
-                for index, event in open_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Open: *{event['open']}* \n"
-                await user.send(f"# [Will be opened] Following Events would be opened around 1 day: \n {msg}")
-            # else:
-            #     await user.send("no open event")
-            msg = ""
-            if len(opened_events)!=0:
-                for index, event in opened_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Opened: *{event['open']}* \n"
-                await user.send(f"# [OPENED] Following Events have been opened: \n {msg}")
-            # else:
-            #     await user.send("no opened event")
-            msg = ""
-            if len(due_events)!=0:
-                for index, event in due_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
-                await user.send(f"# [DUE] Following Events would be due around 1 day: \n {msg}")
-            # else:
-            #     await user.send("no due event")
+            await user.send(vtcics.event_msg(open_events, 'Open', '1 day'))
+            await user.send(vtcics.event_msg(opened_events, 'Opened', '1 day'))
+            await user.send(vtcics.event_msg(due_events, 'Due', '1 day'))
                 
     loop3_sec = 2*24*60*60
     @tasks.loop(seconds=loop3_sec)
     async def auto_send3():
         for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            print(announce_channel['id'])
             channel = await bot.fetch_channel(announce_channel['id'])
             await channel.send('Test message')
         for index, announce_user in vtcics.grab_announce_user().iterrows():
-            print(announce_user['id'])
             user = await bot.fetch_user(announce_user['id'])
             (open_events, opened_events, due_events) = vtcics.checkTime(loop3_sec)
-            msg = ""
-            if len(open_events)!=0:
-                for index, event in open_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Open: *{event['open']}* \n"
-                await user.send(f"# [Will be opened] Following Events would be opened around 2 days: \n {msg}")
-            # else:
-            #     await user.send("no open event")
-            msg = ""
-            if len(opened_events)!=0:
-                for index, event in opened_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Opened: *{event['open']}* \n"
-                await user.send(f"# [OPENED] Following Events have been opened: \n {msg}")
-            # else:
-            #     await user.send("no opened event")
-            msg = ""
-            if len(due_events)!=0:
-                for index, event in due_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
-                await user.send(f"# [DUE] Following Events would be due around 2 days: \n {msg}")
-            # else:
-            #     await user.send("no due event")
+            await user.send(vtcics.event_msg(open_events, 'Open', '2 days'))
+            await user.send(vtcics.event_msg(opened_events, 'Opened', '2 days'))
+            await user.send(vtcics.event_msg(due_events, 'Due', '2 days'))
 
     loop4_sec = 7*24*60*60
     @tasks.loop(seconds=loop4_sec)
     async def auto_send4():
         for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            print(announce_channel['id'])
             channel = await bot.fetch_channel(announce_channel['id'])
             await channel.send('Test message')
         for index, announce_user in vtcics.grab_announce_user().iterrows():
-            print(announce_user['id'])
             user = await bot.fetch_user(announce_user['id'])
             (open_events, opened_events, due_events) = vtcics.checkTime(loop4_sec)
-            msg = ""
-            if len(open_events)!=0:
-                for index, event in open_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Open: *{event['open']}* \n"
-                await user.send(f"# [Will be opened] Following Events would be opened around 1 week: \n {msg}")
-            # else:
-            #     await user.send("no open event")
-            msg = ""
-            if len(opened_events)!=0:
-                for index, event in opened_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Opened: *{event['open']}* \n"
-                await user.send(f"# [OPENED] Following Events have been opened: \n {msg}")
-            # else:
-            #     await user.send("no opened event")
-            msg = ""
-            if len(due_events)!=0:
-                for index, event in due_events.iterrows():
-                    msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n Due: *{event['due']}* \n"
-                await user.send(f"# [DUE] Following Events would be due around 1 week: \n {msg}")
-            # else:
-            #     await user.send("no due event")
+            await user.send(vtcics.event_msg(open_events, 'Open', '1 week'))
+            await user.send(vtcics.event_msg(opened_events, 'Opened', '1 week'))
+            await user.send(vtcics.event_msg(due_events, 'Due', '1 week'))
 
     @tasks.loop(seconds=300)
     async def auto_sync(guildDF:pd.DataFrame, userDF:pd.DataFrame):
-        vtcics.sync_guild(guildDF, userDF)
+        (df, lenDF) = vtcics.sync_guild(guildDF, userDF)
+        if len(df)!=0:
+            for user_id in df['user_id'].drop_duplicates():
+                user = await bot.fetch_user(user_id)
+                synced_viewer_df = df[df['user_id']==user_id].drop('user_id', axis = 1)
+                event_len = lenDF[lenDF['user_id']==user_id].loc[-1:, 'len'].to_string(index=False)
+                print(lenDF[lenDF['user_id']==user_id])
+                print(event_len)
+                msg = f"{len(synced_viewer_df)} events added (Total {event_len}): ```{synced_viewer_df.to_string(index=False)}```"
+                await user.send(msg)
 
     @bot.event
     async def on_ready():
@@ -205,7 +134,7 @@ def run_discord_bot():
     async def upload(interaction: discord.Interaction, url:str):
         await interaction.response.defer()
         asyncio.sleep(25)
-        await interaction.followup.send(f"{vtcics.syncURL(interaction.user.id, interaction.user.name, url)}")
+        await interaction.followup.send(f"{vtcics.syncURL(interaction.user.id, interaction.user.name, url)[0]}")
         # await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
 
     @bot.tree.command(name="announce", description="Make this channel announce the events or mute me in this channel")

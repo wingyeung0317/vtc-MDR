@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, delete
 import config
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String, TIMESTAMP, Table, MetaData
+from typing import Literal
 
 engineURL = config.engineURL
 engine = create_engine(engineURL, future=True)
@@ -104,12 +105,12 @@ def grabQuizOpen(df) -> pd.DataFrame:
     return quiz_startDF
 
 def syncURL(id, name, url):
-    old_df = pd.read_sql(f"SELECT links.event_id \
+    old_df = pd.read_sql_query(f"SELECT links.event_id \
                                 FROM events, links \
                                 WHERE links.user_id = {id} AND events.uid = links.event_id ", 
                                 engineURL).drop_duplicates().reset_index(drop=True)
     synced_df = pd.DataFrame()
-    synced_viewer_df = pd.DataFrame()
+    synced_viewer_df = pd.DataFrame({"user_id":[]})
     update_user_stmt = insert(users).values(id = id, name = name, url = url).on_conflict_do_update(index_elements=[users.c.id], set_ = dict(name = name, url=url))
     if not ((url == "") or (str(url) == "None")):
         with engine.connect() as conn:
@@ -133,22 +134,23 @@ def syncURL(id, name, url):
                 conn.commit()
         for index in icsDF.index:
             pd.DataFrame({"user_id":[id], "event_id":[index]}).to_sql("links", con=engine, if_exists="append")
-        synced_df = pd.read_sql("SELECT user_id, event_id FROM links", engineURL).drop_duplicates().reset_index(drop=True)
+        synced_df = pd.read_sql_query("SELECT user_id, event_id FROM links", engineURL, dtype={'user_id':'Int64'}).drop_duplicates().reset_index(drop=True)
         stmt = (delete(links))
         with engine.connect() as conn:
             result = conn.execute(stmt)
             conn.commit()
         synced_df.to_sql("links", con=engine, if_exists="append")
-        synced_viewer_df = pd.read_sql(f"SELECT links.event_id, name, course, open, due \
+        synced_viewer_df = pd.read_sql_query(f"SELECT links.user_id, links.event_id, name, course, open, due \
                                     FROM events, links \
                                     WHERE links.user_id = {id} AND events.uid = links.event_id ", 
-                                    engineURL, index_col='event_id').drop_duplicates()
-        print(synced_viewer_df)
+                                    engineURL, dtype={"user_id":'Int64'}, index_col='event_id').drop_duplicates()
         synced_viewer_df = synced_viewer_df.drop(index=old_df['event_id']).reset_index(drop=True)
-    msg = f"{len(synced_viewer_df)} events added (Total {len(synced_df)}): ```{synced_viewer_df}```"
-    return(msg)
+    msg = f"{len(synced_viewer_df)} events added (Total {len(synced_df)}): ```{synced_viewer_df.drop('user_id', axis=1).to_string(index=False)}```"
+    return(msg, [synced_viewer_df, len(synced_df)])
 
 def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
+    event_added = pd.DataFrame()
+    event_lenDF = pd.DataFrame()
     # update guild
     for index, guild in guildDF.drop_duplicates('guild_id').iterrows():
         stmt = insert(guilds).values(id = guild['guild_id'], name = guild['guild_name']).on_conflict_do_update(index_elements=[guilds.c.id], set_ = dict(name = guild['guild_name']))
@@ -169,21 +171,24 @@ def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
             conn.commit()
         cursor.execute(f"SELECT url FROM users WHERE id = {user['user_id']}")
         url = cursor.fetchone()
-        syncURL(user['user_id'], user['name'], url[0])
+        (unpack_event, event_len) = syncURL(user['user_id'], user['name'], url[0])[1]
+        event_added = pd.concat([event_added, unpack_event])
+        event_lenDF = pd.concat([event_lenDF, pd.DataFrame({"user_id":[user['user_id']], "len":[event_len]})])
     userDF[['user_id', 'guild_id']].reset_index(drop=True).to_sql("user_in_guilds", con=engine, if_exists="append")
-    user_in_guilds_df = pd.read_sql("SELECT user_id, guild_id FROM user_in_guilds", engineURL).drop_duplicates().reset_index(drop=True)
+    user_in_guilds_df = pd.read_sql_query("SELECT user_id, guild_id FROM user_in_guilds", engineURL, dtype={"user_id":'Int64', "guild_id":'Int64'}).drop_duplicates().reset_index(drop=True)
     stmt = (delete(user_in_guilds))
     with engine.connect() as conn:
         result = conn.execute(stmt)
         conn.commit()
     user_in_guilds_df.to_sql("user_in_guilds", con=engine, if_exists="append")
+    return event_added, event_lenDF
 
 def grab_announce_channel():
-    announce_channelDF = pd.read_sql("SELECT id FROM channels WHERE announce = TRUE", engineURL)
+    announce_channelDF = pd.read_sql_query("SELECT id FROM channels WHERE announce = TRUE", engineURL, dtype={"id":'Int64'})
     return announce_channelDF
 
 def grab_announce_user():
-    announce_userDF = pd.read_sql("SELECT id FROM users", engineURL).reset_index(drop=True)
+    announce_userDF = pd.read_sql_query("SELECT id FROM users", engineURL, dtype={"id":'Int64'}).reset_index(drop=True)
     announce_userDF = announce_userDF.drop(announce_userDF[announce_userDF['id']==1194240403008933999].index)
     return announce_userDF
 
@@ -203,19 +208,41 @@ def checkTime(seconds):
     time_now = arrow.now()
     # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
     time_shift = seconds + (seconds/2/2)
-    open_events = pd.read_sql(f" \
+    open_events = pd.read_sql_query(f" \
                                   SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
                                   FROM links AS l \
                                   INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL)
-    opened_events = pd.read_sql(f" \
+                                  WHERE open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    opened_events = pd.read_sql_query(f" \
                                   SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
                                   FROM links AS l \
                                   INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}'", engineURL)
-    due_events = pd.read_sql(f" \
+                                  WHERE open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    due_events = pd.read_sql_query(f" \
                                   SELECT l.user_id, e.name, e.description, e.course, e.due, e.type, e.url \
                                   FROM links AS l \
                                   INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL)
+                                  WHERE due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
     return open_events, opened_events, due_events
+
+def event_msg(eventDF: pd.DataFrame, type:Literal['Open', 'Opened', 'Due'], time:str):
+    msg = ""
+    if len(eventDF)!=0:
+        for index, event in eventDF.iterrows():
+            if type == 'Due':
+                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['due']}* \n"
+            else:
+                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['open']}* \n"
+        match type:
+            case 'Open':
+                msg = f"# [Will be opened] Following Events would be opened around {time}: \n {msg}"
+            case 'Opened':
+                msg = f"# [OPENED] Following Events have been opened: \n {msg}"
+            case 'Due':
+                msg = f"# [DUE] Following Events would be due around {time}: \n {msg}"
+    # else:
+    #     msg = f"no {type.lower()} event within {time}"
+    return msg
