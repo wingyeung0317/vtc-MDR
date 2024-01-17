@@ -8,7 +8,7 @@ import pandas as pd
 
 def run_discord_bot():
     TOKEN = config.token
-    bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+    bot = commands.Bot(command_prefix="mdr.", intents=discord.Intents.all())
     # client = discord.Client(intents=discord.Intents.all())
 
     loop1_sec = 4*60*60
@@ -110,7 +110,33 @@ def run_discord_bot():
         await interaction.response.defer()
         asyncio.sleep(25)
         await interaction.followup.send(f"{vtcics.syncURL(interaction.user.id, interaction.user.name, url)[0]}")
-        # await interaction.response.send_message(f"```{vtcics.grabDeadlines(url).loc[:, ['name', 'due']].reset_index(drop=True)}```")
+    
+    @bot.tree.command(name="deadlines", description="Show a table of all the deadlines")
+    async def test(interaction: discord.Interaction):
+        await interaction.response.defer()
+        asyncio.sleep(25)
+        vtcics.cursor.execute(f"SELECT url FROM users WHERE id = {interaction.user.id}")
+        url = vtcics.cursor.fetchone()[0]
+        df = vtcics.grabDeadlines(url)
+        await interaction.followup.send(f"```{df[df['due'] > vtcics.arrow.now().datetime].loc[:, ['name', 'due']].reset_index(drop=True)}```")
+        
+    @bot.tree.command(name="events", description="Show a table of all the events")
+    async def test(interaction: discord.Interaction):
+        await interaction.response.defer()
+        asyncio.sleep(25)
+        vtcics.cursor.execute(f"SELECT url FROM users WHERE id = {interaction.user.id}")
+        url = vtcics.cursor.fetchone()[0]
+        print(url)
+        await interaction.followup.send(f"```{vtcics.grabICS(url).loc[:, ['name', 'course']].reset_index(drop=True)}```")
+        
+    @bot.tree.command(name="open", description="Show a table of all the events open date")
+    async def test(interaction: discord.Interaction):
+        await interaction.response.defer()
+        asyncio.sleep(25)
+        vtcics.cursor.execute(f"SELECT url FROM users WHERE id = {interaction.user.id}")
+        url = vtcics.cursor.fetchone()[0]
+        df = vtcics.grabOpens(url)
+        await interaction.followup.send(f"```{df[df['open'] > vtcics.arrow.now().datetime].loc[:, ['name', 'open']].reset_index(drop=True)}```")
 
     @bot.tree.command(name="announce", description="Make this channel announce the events or mute me in this channel")
     async def test(interaction: discord.Interaction):

@@ -82,8 +82,14 @@ def grabICS(url) -> pd.DataFrame:
                                                 )])
     return icsDF
 
-def grabDeadlines(df) -> pd.DataFrame:
-    deadlinesDF = pd.concat([grabAssaignment(df), grabQuiz(df)]).sort_values('due', ascending=1)
+def grabOpens(url) -> pd.DataFrame:
+    df = grabICS(url)
+    opensDF = grabQuizOpen(df).sort_values('open', ascending=True)
+    return opensDF
+
+def grabDeadlines(url) -> pd.DataFrame:
+    df = grabICS(url)
+    deadlinesDF = pd.concat([grabAssaignment(df), grabQuiz(df)]).sort_values('due', ascending=True)
     return deadlinesDF
 
 def grabAssaignment(df) -> pd.DataFrame:
