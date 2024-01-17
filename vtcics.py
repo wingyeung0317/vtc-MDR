@@ -8,6 +8,7 @@ import config
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String, TIMESTAMP, Table, MetaData
 from typing import Literal
+import asyncio
 
 engineURL = config.engineURL
 engine = create_engine(engineURL, future=True)
@@ -204,10 +205,10 @@ def mute_channel(id) -> Boolean:
     mute_bool = cursor.fetchone()
     return mute_bool[0]
 
-def checkTime(seconds):
+def checkTimeUser(seconds):
     time_now = arrow.now()
     # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
-    time_shift = seconds + (seconds/2/2)
+    time_shift = seconds + 300
     open_events = pd.read_sql_query(f" \
                                   SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
                                   FROM links AS l \
@@ -233,9 +234,9 @@ def event_msg(eventDF: pd.DataFrame, type:Literal['Open', 'Opened', 'Due'], time
     if len(eventDF)!=0:
         for index, event in eventDF.iterrows():
             if type == 'Due':
-                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['due']}* \n"
+                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']} ``````[MDR detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['due']}* \n"
             else:
-                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']}``````[System detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['open']}* \n"
+                msg += f"## [{event['name']}]({event['url']}) \n```{event['description']} ``````[MDR detect: {event['type']}]``` Course: `{event['course']}` \n {type}: *{event['open']}* \n"
         match type:
             case 'Open':
                 msg = f"# [Will be opened] Following Events would be opened around {time}: \n {msg}"
@@ -246,3 +247,68 @@ def event_msg(eventDF: pd.DataFrame, type:Literal['Open', 'Opened', 'Due'], time
     # else:
     #     msg = f"no {type.lower()} event within {time}"
     return msg
+
+def channel_event(channel_id: int):
+    events_in_timeDF = pd.read_sql_query(f"\
+                                         SELECT uig.user_id, l.event_id, c.id channel_id FROM user_in_guilds uig \
+                                         INNER JOIN channels c ON c.guild_id = uig.guild_id \
+                                         RIGHT JOIN links l ON l.user_id = uig.user_id \
+                                         WHERE c.id = {channel_id}", engineURL, 
+                                         dtype={"user_id":'Int64', "channel_id":'Int64'})
+    return events_in_timeDF
+
+def checkTimeChannel(seconds, channel_id):
+    time_now = arrow.now()
+    # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
+    time_shift = seconds + 300
+    open_events = pd.read_sql_query(f"\
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                    FROM user_in_guilds uig \
+                                    INNER JOIN channels c ON c.guild_id = uig.guild_id \
+                                    RIGHT JOIN links l ON l.user_id = uig.user_id \
+                                    INNER JOIN events AS e ON l.event_id = e.uid \
+                                    WHERE (c.id = {channel_id}) AND (open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}')", engineURL, 
+                                    dtype={"user_id":'Int64'})
+    opened_events = pd.read_sql_query(f"\
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                    FROM user_in_guilds uig \
+                                    INNER JOIN channels c ON c.guild_id = uig.guild_id \
+                                    RIGHT JOIN links l ON l.user_id = uig.user_id \
+                                    INNER JOIN events AS e ON l.event_id = e.uid \
+                                    WHERE (c.id = {channel_id}) AND (open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}')", engineURL, 
+                                    dtype={"user_id":'Int64'})
+    due_events = pd.read_sql_query(f" \
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.due, e.type, e.url \
+                                    FROM user_in_guilds uig \
+                                    INNER JOIN channels c ON c.guild_id = uig.guild_id \
+                                    RIGHT JOIN links l ON l.user_id = uig.user_id \
+                                    INNER JOIN events AS e ON l.event_id = e.uid \
+                                    WHERE (c.id = {channel_id}) AND (due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}')", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    return open_events, opened_events, due_events
+
+
+async def auto_send(loop_sec, time, bot):
+    userDFs = checkTimeUser(loop_sec)
+    for index, announce_channel in grab_announce_channel().iterrows():
+        channel = await bot.fetch_channel(announce_channel['id'])
+        (open_events, opened_events, due_events) = checkTimeChannel(loop_sec, announce_channel['id'])
+        state = [[open_events, opened_events, due_events],
+                 ['Open', 'Opened', 'Due']]
+        for i in range(3):
+            msg = event_msg(state[0][i], state[1][i], time)
+            if msg != "":
+                await channel.send(msg)
+        
+    for index, announce_user in grab_announce_user().iterrows():
+        df_list = []
+        user = await bot.fetch_user(announce_user['id'])
+        for df in userDFs:
+            df_list.append(df[df['user_id']==announce_user['id']])
+        (open_events, opened_events, due_events) = df_list
+        state = [[open_events, opened_events, due_events],
+                 ['Open', 'Opened', 'Due']]
+        for i in range(3):
+            msg = event_msg(state[0][i], state[1][i], time)
+            if msg != "":
+                await user.send(msg)

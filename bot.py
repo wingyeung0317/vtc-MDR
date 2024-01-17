@@ -14,54 +14,39 @@ def run_discord_bot():
     loop1_sec = 4*60*60
     @tasks.loop(seconds=loop1_sec)
     async def auto_send1():
-        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            channel = await bot.fetch_channel(announce_channel['id'])
-            await channel.send('Test message')
-        for index, announce_user in vtcics.grab_announce_user().iterrows():
-            user = await bot.fetch_user(announce_user['id'])
-            (open_events, opened_events, due_events) = vtcics.checkTime(loop1_sec)
-            await user.send(vtcics.event_msg(open_events, 'Open', '4 hours'))
-            await user.send(vtcics.event_msg(opened_events, 'Opened', '4 hours'))
-            await user.send(vtcics.event_msg(due_events, 'Due', '4 hours'))
+        vtcics.auto_send(loop1_sec, '4 hours', bot)
+        # time = '4 hours'
+        # userDFs = vtcics.checkTimeUser(loop1_sec)
+        # for index, announce_channel in vtcics.grab_announce_channel().iterrows():
+        #     channel = await bot.fetch_channel(announce_channel['id'])
+        #     (open_events, opened_events, due_events) = vtcics.checkTimeChannel(loop1_sec, announce_channel['id'])
+        #     await channel.send(vtcics.event_msg(open_events, 'Open', time))
+            
+        # for index, announce_user in vtcics.grab_announce_user().iterrows():
+        #     df_list = []
+        #     user = await bot.fetch_user(announce_user['id'])
+        #     for df in userDFs:
+        #         df_list.append(df[df['user_id']==announce_user['id']])
+        #     (open_events, opened_events, due_events) = df_list
+        #     state = [[open_events, opened_events, due_events],
+        #              ['Open', 'Opened', 'Due']]
+        #     for i in range(3):
+        #         await user.send(vtcics.event_msg(state[0][i], state[1][i], time))
                 
     loop2_sec = 24*60*60
     @tasks.loop(seconds=loop2_sec)
     async def auto_send2():
-        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            channel = await bot.fetch_channel(announce_channel['id'])
-            await channel.send('Test message')
-        for index, announce_user in vtcics.grab_announce_user().iterrows():
-            user = await bot.fetch_user(announce_user['id'])
-            (open_events, opened_events, due_events) = vtcics.checkTime(loop2_sec)
-            await user.send(vtcics.event_msg(open_events, 'Open', '1 day'))
-            await user.send(vtcics.event_msg(opened_events, 'Opened', '1 day'))
-            await user.send(vtcics.event_msg(due_events, 'Due', '1 day'))
+        await vtcics.auto_send(loop2_sec, '1 day', bot)
                 
     loop3_sec = 2*24*60*60
     @tasks.loop(seconds=loop3_sec)
     async def auto_send3():
-        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            channel = await bot.fetch_channel(announce_channel['id'])
-            await channel.send('Test message')
-        for index, announce_user in vtcics.grab_announce_user().iterrows():
-            user = await bot.fetch_user(announce_user['id'])
-            (open_events, opened_events, due_events) = vtcics.checkTime(loop3_sec)
-            await user.send(vtcics.event_msg(open_events, 'Open', '2 days'))
-            await user.send(vtcics.event_msg(opened_events, 'Opened', '2 days'))
-            await user.send(vtcics.event_msg(due_events, 'Due', '2 days'))
+        await vtcics.auto_send(loop3_sec, '2 days', bot)
 
     loop4_sec = 7*24*60*60
     @tasks.loop(seconds=loop4_sec)
     async def auto_send4():
-        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-            channel = await bot.fetch_channel(announce_channel['id'])
-            await channel.send('Test message')
-        for index, announce_user in vtcics.grab_announce_user().iterrows():
-            user = await bot.fetch_user(announce_user['id'])
-            (open_events, opened_events, due_events) = vtcics.checkTime(loop4_sec)
-            await user.send(vtcics.event_msg(open_events, 'Open', '1 week'))
-            await user.send(vtcics.event_msg(opened_events, 'Opened', '1 week'))
-            await user.send(vtcics.event_msg(due_events, 'Due', '1 week'))
+        await vtcics.auto_send(loop4_sec, '1 week', bot)
 
     @tasks.loop(seconds=300)
     async def auto_sync(guildDF:pd.DataFrame, userDF:pd.DataFrame):
