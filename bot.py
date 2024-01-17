@@ -70,6 +70,13 @@ def run_discord_bot():
         except Exception as e:
             print(e)
 
+        for index, announce_user in vtcics.grab_announce_user().iterrows():
+            user = await bot.fetch_user(announce_user['id'])
+            await user.send("伺服器遭到重啟, 或會重發一次事件通知, 敬請原諒.")
+        for index, announce_channel in vtcics.grab_announce_channel().iterrows():
+            channel = await bot.fetch_channel(announce_channel['id'])
+            await channel.send("伺服器遭到重啟, 或會重發一次事件通知, 敬請原諒.")
+
         guildDF = pd.DataFrame()
         userDF = pd.DataFrame()
         for guild in bot.guilds:

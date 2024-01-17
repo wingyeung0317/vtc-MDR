@@ -185,12 +185,11 @@ def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
     return event_added, event_lenDF
 
 def grab_announce_channel():
-    announce_channelDF = pd.read_sql_query("SELECT id FROM channels WHERE announce = TRUE", engineURL, dtype={"id":'Int64'})
+    announce_channelDF = pd.read_sql_query("SELECT id, guild_id FROM channels WHERE announce = TRUE", engineURL, dtype={"id":'Int64'})
     return announce_channelDF
 
 def grab_announce_user():
-    announce_userDF = pd.read_sql_query("SELECT id FROM users", engineURL, dtype={"id":'Int64'}).reset_index(drop=True)
-    announce_userDF = announce_userDF.drop(announce_userDF[announce_userDF['id']==1194240403008933999].index)
+    announce_userDF = pd.read_sql_query("SELECT id FROM users WHERE url != ''", engineURL, dtype={"id":'Int64'}).reset_index(drop=True)
     return announce_userDF
 
 def mute_channel(id) -> Boolean:
@@ -291,14 +290,28 @@ def checkTimeChannel(seconds, channel_id):
 async def auto_send(loop_sec, time, bot):
     userDFs = checkTimeUser(loop_sec)
     for index, announce_channel in grab_announce_channel().iterrows():
+        msg = ""
+        df_list = []
+        guild_user = []
         channel = await bot.fetch_channel(announce_channel['id'])
-        (open_events, opened_events, due_events) = checkTimeChannel(loop_sec, announce_channel['id'])
+        guild = bot.get_guild(announce_channel['guild_id'])
+        for u in guild.members:
+            guild_user.append(u.id)
+        for df in checkTimeChannel(loop_sec, announce_channel['id']):
+            df = df[df['user_id'].isin(guild_user)]
+            u = df['user_id'].unique()
+            df_list.append(df)
+        for uu in u:
+            msg += f'<@{uu}> '
+        if msg != "":
+            msg+='\n 功能未完善, 目前會tag晒所有相關用戶, 未必所有事件都對被tag的user有關. 請盡量依據direct messages中的通知作準. \n'
+        (open_events, opened_events, due_events) = df_list
         state = [[open_events, opened_events, due_events],
                  ['Open', 'Opened', 'Due']]
         for i in range(3):
-            msg = event_msg(state[0][i], state[1][i], time)
-            if msg != "":
-                await channel.send(msg)
+            msg += event_msg(state[0][i], state[1][i], time)
+        if msg != "":
+            await channel.send(msg)
         
     for index, announce_user in grab_announce_user().iterrows():
         df_list = []
