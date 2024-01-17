@@ -1,3 +1,11 @@
+# Project Related
+config.py
+.wing.gitignore/
+test.ipynb
+
+
+
+#####
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
