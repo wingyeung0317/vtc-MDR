@@ -207,7 +207,7 @@ def mute_channel(id) -> Boolean:
 def checkTimeUser(seconds):
     time_now = arrow.now()
     # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
-    time_shift = seconds + 300
+    time_shift = seconds + seconds/2 -1
     open_events = pd.read_sql_query(f" \
                                   SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
                                   FROM links AS l \
@@ -259,7 +259,7 @@ def channel_event(channel_id: int):
 def checkTimeChannel(seconds, channel_id):
     time_now = arrow.now()
     # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
-    time_shift = seconds + 300
+    time_shift = seconds + seconds/2 -1
     open_events = pd.read_sql_query(f"\
                                     SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
                                     FROM user_in_guilds uig \

@@ -14,39 +14,22 @@ def run_discord_bot():
     loop1_sec = 4*60*60
     @tasks.loop(seconds=loop1_sec)
     async def auto_send1():
-        vtcics.auto_send(loop1_sec, '4 hours', bot)
-        # time = '4 hours'
-        # userDFs = vtcics.checkTimeUser(loop1_sec)
-        # for index, announce_channel in vtcics.grab_announce_channel().iterrows():
-        #     channel = await bot.fetch_channel(announce_channel['id'])
-        #     (open_events, opened_events, due_events) = vtcics.checkTimeChannel(loop1_sec, announce_channel['id'])
-        #     await channel.send(vtcics.event_msg(open_events, 'Open', time))
-            
-        # for index, announce_user in vtcics.grab_announce_user().iterrows():
-        #     df_list = []
-        #     user = await bot.fetch_user(announce_user['id'])
-        #     for df in userDFs:
-        #         df_list.append(df[df['user_id']==announce_user['id']])
-        #     (open_events, opened_events, due_events) = df_list
-        #     state = [[open_events, opened_events, due_events],
-        #              ['Open', 'Opened', 'Due']]
-        #     for i in range(3):
-        #         await user.send(vtcics.event_msg(state[0][i], state[1][i], time))
+        vtcics.auto_send(loop1_sec, '(2 ~ 6) hours', bot)
                 
     loop2_sec = 24*60*60
     @tasks.loop(seconds=loop2_sec)
     async def auto_send2():
-        await vtcics.auto_send(loop2_sec, '1 day', bot)
+        await vtcics.auto_send(loop2_sec, '(0.5 ~ 1.5) day', bot)
                 
     loop3_sec = 2*24*60*60
     @tasks.loop(seconds=loop3_sec)
     async def auto_send3():
-        await vtcics.auto_send(loop3_sec, '2 days', bot)
+        await vtcics.auto_send(loop3_sec, '(1 ~ 3) days', bot)
 
     loop4_sec = 7*24*60*60
     @tasks.loop(seconds=loop4_sec)
     async def auto_send4():
-        await vtcics.auto_send(loop4_sec, '1 week', bot)
+        await vtcics.auto_send(loop4_sec, '(3 ~ 9) days', bot)
 
     @tasks.loop(seconds=300)
     async def auto_sync(guildDF:pd.DataFrame, userDF:pd.DataFrame):
