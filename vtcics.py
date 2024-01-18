@@ -6,7 +6,7 @@ import arrow
 from sqlalchemy import create_engine, delete
 import config
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String, TIMESTAMP, Table, MetaData
+from sqlalchemy import Boolean, Column, ForeignKey, BigInteger, Integer, String, TIMESTAMP, Table, MetaData, update, text
 from typing import Literal
 import asyncio
 
@@ -52,14 +52,17 @@ events = Table(
 
 links = Table(
     "links", metadata,
-    Column("index", Integer),
+    Column("index", Integer, primary_key=True), 
     Column("user_id", None, ForeignKey("users.id")),
-    Column("event_id", None, ForeignKey("events.uid"))
+    Column("event_id", None, ForeignKey("events.uid")),
+    Column("announce_4hours", Boolean, default=False),
+    Column("announce_1day", Boolean, default=False),
+    Column("announce_3days", Boolean, default=False),
+    Column("announce_8days", Boolean, default=False)
 )
 
 user_in_guilds = Table(
     "user_in_guilds", metadata,
-    Column("index", Integer),
     Column("user_id", None, ForeignKey("users.id")),
     Column("guild_id", None, ForeignKey("guilds.id"))
 )
@@ -119,6 +122,7 @@ def syncURL(id, name, url):
     synced_df = pd.DataFrame()
     synced_viewer_df = pd.DataFrame({"user_id":[]})
     update_user_stmt = insert(users).values(id = id, name = name, url = url).on_conflict_do_update(index_elements=[users.c.id], set_ = dict(name = name, url=url))
+    synced_df = pd.read_sql_query("SELECT * FROM links", engineURL, dtype={'user_id':'Int64'}, index_col='index').drop_duplicates()
     if not ((url == "") or (str(url) == "None")):
         with engine.connect() as conn:
             result = conn.execute(update_user_stmt)
@@ -140,13 +144,29 @@ def syncURL(id, name, url):
                 result = conn.execute(update_event_stmt)
                 conn.commit()
         for index in icsDF.index:
-            pd.DataFrame({"user_id":[id], "event_id":[index]}).to_sql("links", con=engine, if_exists="append")
-        synced_df = pd.read_sql_query("SELECT user_id, event_id FROM links", engineURL, dtype={'user_id':'Int64'}).drop_duplicates().reset_index(drop=True)
-        stmt = (delete(links))
-        with engine.connect() as conn:
-            result = conn.execute(stmt)
-            conn.commit()
-        synced_df.to_sql("links", con=engine, if_exists="append")
+            try:
+                insertDF = pd.DataFrame({"user_id":[id], "event_id":[index]})
+                print(type(insertDF.loc[0, "user_id"]))
+                excludeDF = insertDF[(insertDF["user_id"].astype("string")+insertDF["event_id"]).isin(synced_df["user_id"].astype("string")+synced_df["event_id"])]
+                print(excludeDF)
+                print(insertDF)
+                print([synced_df["user_id"], synced_df["event_id"]])
+                for index, c in excludeDF.iterrows():
+                    insertDF = insertDF.drop(index, axis=0)
+                print(insertDF)
+                insertDF.to_sql("links", con=engine, if_exists="append", index=False)
+                # stmt = (insert(links).values(user_id = id, event_id = index).on_conflict_do_nothing(links.c.user_id, links.c.event_id))
+                # stmt = text(f"INSERT INTO links VALUES ({id}, '{index}', FALSE, FALSE, FALSE, FALSE) ON CONFLICT (user_id, event_id) DO NOTHING;")
+                # with engine.connect() as conn:
+                #     result = conn.execute(stmt)
+                #     conn.commit()
+            except Exception as e:
+                print(e)
+        # stmt = (delete(links))
+        # with engine.connect() as conn:
+        #     result = conn.execute(stmt)
+        #     conn.commit()
+        # synced_df.to_sql("links", con=engine, if_exists="append", index=False)
         synced_viewer_df = pd.read_sql_query(f"SELECT links.user_id, links.event_id, name, course, open, due \
                                     FROM events, links \
                                     WHERE links.user_id = {id} AND events.uid = links.event_id ", 
@@ -181,13 +201,13 @@ def sync_guild(guildDF:pd.DataFrame, userDF:pd.DataFrame):
         (unpack_event, event_len) = syncURL(user['user_id'], user['name'], url[0])[1]
         event_added = pd.concat([event_added, unpack_event])
         event_lenDF = pd.concat([event_lenDF, pd.DataFrame({"user_id":[user['user_id']], "len":[event_len]})])
-    userDF[['user_id', 'guild_id']].reset_index(drop=True).to_sql("user_in_guilds", con=engine, if_exists="append")
+    userDF[['user_id', 'guild_id']].reset_index(drop=True).to_sql("user_in_guilds", con=engine, if_exists="append", index=False)
     user_in_guilds_df = pd.read_sql_query("SELECT user_id, guild_id FROM user_in_guilds", engineURL, dtype={"user_id":'Int64', "guild_id":'Int64'}).drop_duplicates().reset_index(drop=True)
     stmt = (delete(user_in_guilds))
     with engine.connect() as conn:
         result = conn.execute(stmt)
         conn.commit()
-    user_in_guilds_df.to_sql("user_in_guilds", con=engine, if_exists="append")
+    user_in_guilds_df.to_sql("user_in_guilds", con=engine, if_exists="append", index=False)
     return event_added, event_lenDF
 
 def grab_announce_channel():
@@ -209,30 +229,6 @@ def mute_channel(id) -> Boolean:
     cursor.execute(f"SELECT announce FROM channels WHERE id = {id}")
     mute_bool = cursor.fetchone()
     return mute_bool[0]
-
-def checkTimeUser(seconds):
-    time_now = arrow.now()
-    # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
-    time_shift = seconds + seconds/2 -1
-    open_events = pd.read_sql_query(f" \
-                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
-                                  FROM links AS l \
-                                  INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
-                                  dtype={"user_id":'Int64'})
-    opened_events = pd.read_sql_query(f" \
-                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
-                                  FROM links AS l \
-                                  INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}'", engineURL, 
-                                  dtype={"user_id":'Int64'})
-    due_events = pd.read_sql_query(f" \
-                                  SELECT l.user_id, e.name, e.description, e.course, e.due, e.type, e.url \
-                                  FROM links AS l \
-                                  INNER JOIN events AS e ON l.event_id = e.uid \
-                                  WHERE due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
-                                  dtype={"user_id":'Int64'})
-    return open_events, opened_events, due_events
 
 def event_msg(eventDF: pd.DataFrame, type:Literal['Open', 'Opened', 'Due'], time:str):
     msg = ""
@@ -262,12 +258,36 @@ def channel_event(channel_id: int):
                                          dtype={"user_id":'Int64', "channel_id":'Int64'})
     return events_in_timeDF
 
+def checkTimeUser(seconds):
+    time_now = arrow.now()
+    # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
+    time_shift = seconds + 300
+    open_events = pd.read_sql_query(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url, l.event_id, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    opened_events = pd.read_sql_query(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.open, e.type, e.url, l.event_id, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    due_events = pd.read_sql_query(f" \
+                                  SELECT l.user_id, e.name, e.description, e.course, e.due, e.type, e.url, l.event_id, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
+                                  FROM links AS l \
+                                  INNER JOIN events AS e ON l.event_id = e.uid \
+                                  WHERE due BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now.shift(seconds=time_shift).datetime}'", engineURL, 
+                                  dtype={"user_id":'Int64'})
+    return open_events, opened_events, due_events
+
 def checkTimeChannel(seconds, channel_id):
     time_now = arrow.now()
     # time_now = arrow.Arrow(2024, 4, 19, 23, 40, 0)
-    time_shift = seconds + seconds/2 -1
+    time_shift = seconds + 300
     open_events = pd.read_sql_query(f"\
-                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
                                     FROM user_in_guilds uig \
                                     INNER JOIN channels c ON c.guild_id = uig.guild_id \
                                     RIGHT JOIN links l ON l.user_id = uig.user_id \
@@ -275,7 +295,7 @@ def checkTimeChannel(seconds, channel_id):
                                     WHERE (c.id = {channel_id}) AND (open BETWEEN '{time_now}' AND '{time_now.shift(seconds=time_shift).datetime}')", engineURL, 
                                     dtype={"user_id":'Int64'})
     opened_events = pd.read_sql_query(f"\
-                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url \
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.open, e.type, e.url, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
                                     FROM user_in_guilds uig \
                                     INNER JOIN channels c ON c.guild_id = uig.guild_id \
                                     RIGHT JOIN links l ON l.user_id = uig.user_id \
@@ -283,7 +303,7 @@ def checkTimeChannel(seconds, channel_id):
                                     WHERE (c.id = {channel_id}) AND (open BETWEEN '{time_now.shift(seconds=time_shift*-1).datetime}' AND '{time_now}')", engineURL, 
                                     dtype={"user_id":'Int64'})
     due_events = pd.read_sql_query(f" \
-                                    SELECT uig.user_id, e.name, e.description, e.course, e.due, e.type, e.url \
+                                    SELECT uig.user_id, e.name, e.description, e.course, e.due, e.type, e.url, l.announce_4hours, l.announce_1day, l.announce_3days, l.announce_8days \
                                     FROM user_in_guilds uig \
                                     INNER JOIN channels c ON c.guild_id = uig.guild_id \
                                     RIGHT JOIN links l ON l.user_id = uig.user_id \
@@ -293,41 +313,77 @@ def checkTimeChannel(seconds, channel_id):
     return open_events, opened_events, due_events
 
 
-async def auto_send(loop_sec, time, bot):
-    userDFs = checkTimeUser(loop_sec)
-    for index, announce_channel in grab_announce_channel().iterrows():
-        msg = ""
-        df_list = []
-        guild_user = []
-        channel = await bot.fetch_channel(announce_channel['id'])
-        guild = bot.get_guild(announce_channel['guild_id'])
-        for u in guild.members:
-            guild_user.append(u.id)
-        for df in checkTimeChannel(loop_sec, announce_channel['id']):
-            df = df[df['user_id'].isin(guild_user)]
-            u = df['user_id'].unique()
-            df_list.append(df)
-        for uu in u:
-            msg += f'<@{uu}> '
-        if msg != "":
-            msg+='\n 功能未完善, 目前會tag晒所有相關用戶, 未必所有事件都對被tag的user有關. 請盡量依據direct messages中的通知作準. \n'
-        (open_events, opened_events, due_events) = df_list
-        state = [[open_events, opened_events, due_events],
-                 ['Open', 'Opened', 'Due']]
-        for i in range(3):
-            msg += event_msg(state[0][i], state[1][i], time)
-        if msg != "":
-            await channel.send(msg)
-        
-    for index, announce_user in grab_announce_user().iterrows():
-        df_list = []
-        user = await bot.fetch_user(announce_user['id'])
-        for df in userDFs:
-            df_list.append(df[df['user_id']==announce_user['id']])
-        (open_events, opened_events, due_events) = df_list
-        state = [[open_events, opened_events, due_events],
-                 ['Open', 'Opened', 'Due']]
-        for i in range(3):
-            msg = event_msg(state[0][i], state[1][i], time)
+async def auto_send(bot):
+    hour = 60*60
+    day = 60*60*24
+    announce_time = pd.DataFrame({"time":["8 days", "3 days",  "1 day", "4 hours"], 
+                                  "seconds":[8*day, 3*day, 1*day, 4*hour], 
+                                  "column":["announce_8days", "announce_3days", "announce_1day", "announce_4hours"]}).set_index("time")
+    for time, s in announce_time.iterrows():
+        # announce channel
+        userDFs = checkTimeUser(s["seconds"])
+        for index, announce_channel in grab_announce_channel().iterrows():
+            msg = ""
+            df_list = []
+            guild_user = []
+            channel = await bot.fetch_channel(announce_channel['id'])
+            guild = bot.get_guild(announce_channel['guild_id'])
+            for u in guild.members:
+                guild_user.append(u.id)
+            for df in checkTimeChannel(s["seconds"], announce_channel['id']):
+                df = df[df['user_id'].isin(guild_user)]
+                df = df[df[s['column']] == False]
+                u = df['user_id'].unique()
+                df_list.append(df)
+            for uu in u:
+                msg += f'<@{uu}> '
             if msg != "":
-                await user.send(msg)
+                msg+='\n 功能未完善, 目前會tag晒所有相關用戶, 未必所有事件都對被tag的user有關. 請盡量依據direct messages中的通知作準. \n'
+            (open_events, opened_events, due_events) = df_list
+            state = [[open_events, opened_events, due_events],
+                    ['Open', 'Opened', 'Due']]
+            for i in range(3):
+                msg += event_msg(state[0][i], state[1][i], time)
+            if msg != "":
+                await channel.send(msg)
+        # announce user
+        for index, announce_user in grab_announce_user().iterrows():
+            df_list = []
+            announced_user_id = []
+            announced_event_id = []
+            announced_user_id_str = ""
+            announced_event_id_str = ""
+            user = await bot.fetch_user(announce_user['id'])
+            for df in userDFs:
+                df = df[df['user_id']==announce_user['id']]
+                df = df[df[s['column']] != True]
+                df_list.append(df)
+                announced_user_id.append(df['user_id'])
+                announced_event_id.append(df['event_id'])
+                print(df)
+            (open_events, opened_events, due_events) = df_list
+            state = [[open_events, opened_events, due_events],
+                    ['Open', 'Opened', 'Due']]
+            for i in range(3):
+                msg = event_msg(state[0][i], state[1][i], time)
+                if msg != "":
+                    await user.send(msg)
+            for item in announced_user_id:
+                for str in item:
+                    if announced_user_id_str != "":
+                        announced_user_id_str += ", "
+                    announced_user_id_str += f"'{str}'"
+            for item in announced_event_id:
+                for str in item:
+                    if announced_event_id_str != "":
+                        announced_event_id_str += ", "
+                    announced_event_id_str += f"'{str}'"
+            value = (s['column'])
+            try:
+                if announced_user_id_str != "" and announced_event_id_str != 0:
+                    stmt = text(f"UPDATE links SET {value} = TRUE WHERE (user_id IN ({announced_user_id_str})) AND (event_id IN ({announced_event_id_str}))")
+                    with engine.connect() as conn:
+                        result = conn.execute(stmt)
+                        conn.commit()
+            except Exception as e:
+                print(e)
