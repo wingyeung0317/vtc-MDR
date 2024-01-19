@@ -11,35 +11,10 @@ def run_discord_bot():
     bot = commands.Bot(command_prefix="mdr.", intents=discord.Intents.all())
     # client = discord.Client(intents=discord.Intents.all())
 
-    loop1_sec = 4*60*60
-    @tasks.loop(seconds=loop1_sec)
-    async def auto_send1():
+    @tasks.loop(seconds=300)
+    async def auto_run():
         try:
-            await vtcics.auto_send(loop1_sec, '(2 ~ 6) hours', bot)
-        except Exception as e:
-            print(e)
-                
-    loop2_sec = 24*60*60
-    @tasks.loop(seconds=loop2_sec)
-    async def auto_send2():
-        try:
-            await vtcics.auto_send(loop2_sec, '(0.5 ~ 1.5) day', bot)
-        except Exception as e:
-            print(e)
-                
-    loop3_sec = 2*24*60*60
-    @tasks.loop(seconds=loop3_sec)
-    async def auto_send3():
-        try:
-            await vtcics.auto_send(loop3_sec, '(1 ~ 3) days', bot)
-        except Exception as e:
-            print(e)
-
-    loop4_sec = 7*24*60*60
-    @tasks.loop(seconds=loop4_sec)
-    async def auto_send4():
-        try:
-            await vtcics.auto_send(loop4_sec, '(3 ~ 9) days', bot)
+            await vtcics.auto_send(bot)
         except Exception as e:
             print(e)
 
@@ -68,10 +43,10 @@ def run_discord_bot():
 
             for index, announce_user in vtcics.grab_announce_user().iterrows():
                 user = await bot.fetch_user(announce_user['id'])
-                await user.send("伺服器遭到重啟, 或會重發一次事件通知, 敬請原諒.")
+                await user.send("伺服器遭到重啟, 敬請原諒.")
             for index, announce_channel in vtcics.grab_announce_channel().iterrows():
                 channel = await bot.fetch_channel(announce_channel['id'])
-                await channel.send("伺服器遭到重啟, 或會重發一次事件通知, 敬請原諒.")
+                await channel.send("伺服器遭到重啟, 敬請原諒.")
 
             guildDF = pd.DataFrame()
             userDF = pd.DataFrame()
@@ -88,14 +63,8 @@ def run_discord_bot():
             # user = await bot.fetch_user('525916472833343528')
             # text_channel_list.append(user)
 
-            if not auto_send1.is_running():
-                auto_send1.start()
-            if not auto_send2.is_running():
-                auto_send2.start()
-            if not auto_send3.is_running():
-                auto_send3.start()
-            if not auto_send4.is_running():
-                auto_send4.start()
+            if not auto_run.is_running():
+                auto_run.start()
 
             print(
                 f'{bot.user} has successfully connected to the following guild(s):\n'
@@ -108,6 +77,8 @@ def run_discord_bot():
 
         except Exception as e:
             print(e)
+            
+        print(f"init done!")
 
     @bot.tree.command(name="test")
     async def test(interaction: discord.Interaction):
