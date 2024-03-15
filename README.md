@@ -1,6 +1,9 @@
 # <img src="https://github.com/wingyeung0317/vtc-MDR/assets/121206892/5c30ad26-396b-450e-b97b-10b38661168b" alt="icon" width="32"> vtc-MDR 
 
 VTC Moodle Discord Reminder is a project that uses Discord bot to remind the due dates of VTC Moodle assignments.
+![image](https://github.com/wingyeung0317/vtc-MDR/assets/121206892/e1b6d3da-3aca-4ca5-9ed5-c6d9f3159fa3)
+![image](https://github.com/wingyeung0317/vtc-MDR/assets/121206892/2adb6978-e214-497e-a51d-82f091e86f3b)
+![image](https://github.com/wingyeung0317/vtc-MDR/assets/121206892/f3c06170-8f37-4503-9c14-95e0d28240db)
 1. Add bot to server: [https://discord.com/api/oauth2/authorize?client_id=1194240403008933999&permissions=277025527808&scope=bot](https://discord.com/api/oauth2/authorize?client_id=1194240403008933999&permissions=277025527808&scope=bot)
 2. After adding the bot, use `/dm` to let the bot send a direct message to you
 3. In DM, use `/upload` url: [with your moodle calendar url](https://moodle2324.vtc.edu.hk/calendar/export.php)
